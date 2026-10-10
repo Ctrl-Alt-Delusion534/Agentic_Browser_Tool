@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Editorial Hero Section (PRDUCK Inspired) -->
+<section class="hero-section">
+    <h1 class="hero-title">
+        Improve the execution you get from <em>Autonomous Workers.</em>
+    </h1>
+    <p class="hero-subtitle">
+        Autonomously discover invoices, extract financial fields, and record verified entries into the company ERP ledger.
+    </p>
+
+    <!-- Evaluation / Metrics Pills (PRDUCK pill row) -->
+    <div class="metric-pills">
+        <div class="badge-pill">
+            <span class="dot-orange"></span>
+            <span>#1 Invoices Logged</span>
+            <span class="pill-score">{{ invoices|length }}</span>
+        </div>
+        <div class="badge-pill">
+            <span class="dot-dark"></span>
+            <span>#2 Ledger Balance</span>
+            <span class="pill-score">${{ "%.2f"|format(invoices|sum(attribute='amount')) if invoices else "0.00" }}</span>
+        </div>
+        <div class="badge-pill">
+            <span class="dot-blue"></span>
+            <span>#3 Audit Verification</span>
+            <span class="pill-score">SHA-256</span>
+        </div>
+    </div>
+</section>
+
+<!-- Main Workspace Grid -->
+<div class="main-grid">
+    <!-- Left Column: Invoice Form -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Record New Invoice</h2>
+        </div>
+
+        <form id="invoice_entry_form" action="/invoices" method="post">
+            <div class="form-group">
+                <label for="vendor_name">Vendor / Company Name</label>
+                <input type="text" id="vendor_name" name="vendor_name" class="input-control" placeholder="e.g. Acme Corporation" required>
+            </div>
+
+            <div class="form-group">
+                <label for="invoice_number">Invoice Reference Number</label>
+                <input type="text" id="invoice_number" name="invoice_number" class="input-control" placeholder="e.g. INV-2024-001" required>
+            </div>
+
+            <div class="form-group">
+                <label for="amount">Invoice Amount (USD $)</label>
+                <input type="number" step="0.01" id="amount" name="amount" class="input-control" placeholder="e.g. 4500.00" required>
+            </div>
+
+            <div class="form-group">
+                <label for="due_date">Payment Due Date</label>
+                <input type="date" id="due_date" name="due_date" class="input-control" required>
+            </div>
+
+            <button type="submit" id="submit_btn" class="btn-submit">
+                Record to ERP Ledger ➔
+            </button>
+        </form>
+    </div>
+
+    <!-- Right Column: Ledger Table -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">General Invoices Ledger</h2>
+            <div class="filter-bar">
+                <input type="text" id="search_input" class="search-input" placeholder="Search by vendor, invoice #...">
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+            <table id="invoices_table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Vendor</th>
+                        <th>Invoice #</th>
+                        <th>Amount</th>
+                        <th>Due Date</th>
+                        <th>Status</th>
+                        <th>Audit Hash</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if invoices %}
+                        {% for inv in invoices %}
+                        <tr id="row-{{ inv.id }}">
+                            <td class="mono">#{{ inv.id }}</td>
+                            <td style="font-weight: 600;">{{ inv.vendor_name }}</td>
+                            <td class="mono">{{ inv.invoice_number }}</td>
+                            <td style="font-weight: 700; color: #0f172a;">${{ "%.2f"|format(inv.amount) }}</td>
+                            <td>{{ inv.due_date }}</td>
+                            <td><span class="status-pill">{{ inv.status }}</span></td>
+                            <td class="mono copy-trigger" data-copy="{{ inv.audit_hash }}" title="Click to copy hash" style="cursor: pointer; color: #64748b; font-size: 0.775rem;">
+                                {{ inv.audit_hash }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr class="empty-row">
+                            <td colspan="7" class="empty-state">
+                                🦁 No invoices logged yet. Use the entry form or let the AI worker submit one.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

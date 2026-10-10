@@ -1,0 +1,64 @@
+# environment files
+.env
+.env.*
+*.env
+
+# hiring documents
+*Hiring*
+*CentrAlign*
+*JD*.*
+
+# sample files
+company_portal/sample_files/
+sample_files/
+*.docx
+*.pdf
+
+# planning artifacts
+.planning/
+specs/
+
+# python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# testing caches
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# runtime databases
+*.db
+*.sqlite
+*.sqlite3
+portal.db
+company_portal/*.db
+
+# generated artifacts
+artifacts/
+*.log
+playwright-report/
+test-results/
+
+# scratch scripts
+demo_*.py
+scratch/
+temp/
+tmp/
+
+# ide settings
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

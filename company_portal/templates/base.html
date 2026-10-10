@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CentrAlign Billing Portal{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,700;1,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div class="container">
+        <!-- Floating Dark Pill Navbar -->
+        <nav class="floating-nav">
+            <div class="nav-left">
+                <a href="/" class="nav-brand">
+                    <span class="brand-icon">🦁</span>
+                    <span>CentrAlign Billing Portal</span>
+                </a>
+            </div>
+
+            <div class="nav-actions">
+                <form action="/api/reset" method="post" style="display: inline; margin: 0;">
+                    <button type="submit" id="reset_btn" class="nav-cta">
+                        Reset Ledger ↗
+                    </button>
+                </form>
+            </div>
+        </nav>
+
+        {% if message %}
+        <div class="alert-box" id="status_alert">
+            {{ message }}
+        </div>
+        {% endif %}
+
+        <main>
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script src="/static/js/portal.js"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
