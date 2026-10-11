@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-10-11T15:24:11.365801+00:00",
+  "goal": "Find the latest invoice from Acme Corp, extract the amount and due date, enter it into our internal system, and tell me once it is done.",
+  "verified": true,
+  "invoice_number": "INV-2024-001",
+  "vendor_name": "ACME CORPORATION",
+  "amount": 4500.0,
+  "due_date": "2026-11-15",
+  "audit_hash": "32a92d55b5805f56",
+  "ledger_id": 1
+}

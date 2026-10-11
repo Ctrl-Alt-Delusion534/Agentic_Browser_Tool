@@ -16,6 +16,11 @@ sample_files/
 
 # planning artifacts
 .planning/
+.agents/
+.gemini/
+.cursor/
+.claude/
+.system_generated/
 specs/
 
 # python bytecode
