@@ -103,15 +103,45 @@ async def handle_form_submission(
 
 @app.post("/upload", response_class=RedirectResponse)
 async def handle_file_upload(file: UploadFile = File(...)):
-    # save incoming file
-    dest_dir = Path(__file__).parent / "sample_files"
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / file.filename
-    dest_path.write_bytes(await file.read())
-    return RedirectResponse(
-        url=f"/?message=Uploaded+{file.filename}+to+inbox",
-        status_code=status.HTTP_303_SEE_OTHER
-    )
+    import urllib.parse
+    # validate filename
+    if not file or not file.filename or not file.filename.strip():
+        return RedirectResponse(
+            url="/?message=Please+select+a+file+to+upload",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    # sanitize filename
+    clean_name = Path(file.filename).name.strip()
+    if not clean_name.lower().endswith((".pdf", ".docx")):
+        return RedirectResponse(
+            url="/?message=Unsupported+format.+Please+upload+a+PDF+or+DOCX+invoice",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    try:
+        # save incoming file
+        dest_dir = Path(__file__).parent / "sample_files"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / clean_name
+        content = await file.read()
+        if not content:
+            return RedirectResponse(
+                url="/?message=Uploaded+file+is+empty",
+                status_code=status.HTTP_303_SEE_OTHER
+            )
+        dest_path.write_bytes(content)
+        msg = urllib.parse.quote(f"Uploaded {clean_name} to inbox successfully")
+        return RedirectResponse(
+            url=f"/?message={msg}",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+    except Exception as e:
+        err = urllib.parse.quote(f"Upload failed: {str(e)}")
+        return RedirectResponse(
+            url=f"/?message={err}",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
 
 
 # rest endpoints
