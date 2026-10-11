@@ -127,5 +127,35 @@ class GroqBrain:
         return {"tool": "enterprise_api", "params": {"action": "list"}}
 
 
+    def extract_document_fields(self, text: str) -> Dict[str, Any]:
+        # analyze document text with llm
+        if not self.client or not text.strip():
+            return {}
+        try:
+            prompt = (
+                "Extract structured invoice fields from this document text. "
+                "Return a JSON object with keys: "
+                "'vendor_name' (str), 'invoice_number' (str), 'amount' (float), 'due_date' (YYYY-MM-DD format). "
+                "If any field cannot be found, set its value to null.\n\n"
+                f"DOCUMENT TEXT:\n{text[:4000]}"
+            )
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a precise invoice extraction engine. Return valid JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.0
+            )
+            data = json.loads(resp.choices[0].message.content)
+            return {
+                k: v for k, v in data.items()
+                if v is not None and v != "" and v != "null"
+            }
+        except Exception:
+            return {}
+
+
 # backwards compatibility alias
 GeminiBrain = GroqBrain

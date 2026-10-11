@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-10-11T15:51:43.290109+00:00",
-  "goal": "audit Sonam Dynamics in the records with ampunt 4850 and date 13/12/2026",
+  "timestamp": "2026-10-11T18:32:45.053882+00:00",
+  "goal": "Discover and record all invoices",
   "verified": true,
-  "invoice_number": "Sonam Dynamics-AUDIT-4850",
-  "vendor_name": "Sonam Dynamics",
-  "amount": 4850.0,
-  "due_date": "2026-12-13",
-  "audit_hash": "d09ffaa6d45e10ed",
-  "ledger_id": 3
+  "invoice_number": "GL-INV-8821",
+  "vendor_name": "Global Logistics Inc.",
+  "amount": 12850.75,
+  "due_date": "2026-11-20",
+  "audit_hash": "08ab5987dfff48b7",
+  "ledger_id": 4
 }

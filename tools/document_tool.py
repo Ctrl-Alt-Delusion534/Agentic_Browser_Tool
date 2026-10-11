@@ -120,12 +120,37 @@ class DocumentParserTool(BaseTool):
         lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
 
         # extract fields
+        vendor = self._extract_vendor(lines)
+        inv_num = self._extract_invoice_number(raw_text)
+        amount = self._extract_amount(raw_text)
+        due_date = self._extract_due_date(raw_text)
+
+        # fallback to llm reasoning if fields missing
+        if not all([vendor, inv_num, amount, due_date]) and len(raw_text.strip()) > 15:
+            try:
+                from agent.llm import GroqBrain
+                brain = GroqBrain()
+                llm_facts = brain.extract_document_fields(raw_text)
+                if not vendor and llm_facts.get("vendor_name"):
+                    vendor = str(llm_facts["vendor_name"])
+                if not inv_num and llm_facts.get("invoice_number"):
+                    inv_num = str(llm_facts["invoice_number"])
+                if amount is None and llm_facts.get("amount") is not None:
+                    try:
+                        amount = float(llm_facts["amount"])
+                    except (ValueError, TypeError):
+                        pass
+                if not due_date and llm_facts.get("due_date"):
+                    due_date = str(llm_facts["due_date"])
+            except Exception:
+                pass
+
         data = {
             "file_name": path.name,
-            "vendor_name": self._extract_vendor(lines),
-            "invoice_number": self._extract_invoice_number(raw_text),
-            "amount": self._extract_amount(raw_text),
-            "due_date": self._extract_due_date(raw_text),
+            "vendor_name": vendor or "Unknown",
+            "invoice_number": inv_num or "N/A",
+            "amount": amount,
+            "due_date": due_date or "N/A",
             "file_path": str(path.resolve()),
             "raw_text_preview": raw_text[:300].strip(),
         }

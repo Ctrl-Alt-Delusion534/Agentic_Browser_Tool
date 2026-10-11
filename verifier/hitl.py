@@ -9,18 +9,27 @@ class HITLGate:
         self.threshold = threshold_amount
         self.auto_approve = auto_approve or os.getenv("AGENT_AUTO_APPROVE", "false").lower() == "true" or "--auto-approve" in sys.argv
 
-    def requires_approval(self, amount: float) -> bool:
+    def requires_approval(self, amount: Any) -> bool:
         # evaluate high risk
-        return float(amount) >= self.threshold
+        try:
+            val = float(amount) if amount is not None else 0.0
+        except (ValueError, TypeError):
+            val = 0.0
+        return val >= self.threshold
 
-    def request_approval(self, vendor_name: str, invoice_number: str, amount: float) -> Dict[str, Any]:
+    def request_approval(self, vendor_name: str, invoice_number: str, amount: Any) -> Dict[str, Any]:
         # check approval need
         if not self.requires_approval(amount):
             return {"approved": True, "reason": "Below risk threshold"}
 
+        try:
+            val = float(amount) if amount is not None else 0.0
+        except (ValueError, TypeError):
+            val = 0.0
+
         if self.auto_approve or not sys.stdin.isatty() or "pytest" in sys.modules:
             # automatic approval logged
-            print(f"[HITL Safety Gate] High-value invoice (${amount:,.2f}) AUTO-APPROVED.")
+            print(f"[HITL Safety Gate] High-value invoice (${val:,.2f}) AUTO-APPROVED.")
             return {"approved": True, "reason": "Auto-approved by policy"}
 
         # prompt operator input

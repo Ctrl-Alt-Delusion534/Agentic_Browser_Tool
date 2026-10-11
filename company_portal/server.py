@@ -10,7 +10,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from company_portal.database import (
@@ -59,7 +59,12 @@ def get_incoming_files_list():
     for f in files:
         res = parser.execute(str(f))
         if res.success and res.data:
-            items.append(res.data)
+            item = dict(res.data)
+            try:
+                item["amount"] = float(item["amount"]) if item.get("amount") is not None else 0.0
+            except (ValueError, TypeError):
+                item["amount"] = 0.0
+            items.append(item)
         else:
             items.append({"file_name": f.name, "vendor_name": "Unknown", "invoice_number": "N/A", "amount": 0.0, "due_date": "N/A"})
     return items
@@ -125,11 +130,24 @@ async def handle_file_upload(file: UploadFile = File(...)):
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest_path = dest_dir / clean_name
         content = await file.read()
-        if not content:
+        if not content or len(content) < 50:
             return RedirectResponse(
-                url="/?message=Uploaded+file+is+empty",
+                url="/?message=Uploaded+file+is+empty+or+corrupted",
                 status_code=status.HTTP_303_SEE_OTHER
             )
+
+        # reject fake files without real magic bytes
+        if clean_name.lower().endswith(".pdf") and not content.startswith(b"%PDF-"):
+            return RedirectResponse(
+                url="/?message=Rejected:+File+is+not+a+valid+PDF+document",
+                status_code=status.HTTP_303_SEE_OTHER
+            )
+        if clean_name.lower().endswith(".docx") and not content.startswith(b"PK"):
+            return RedirectResponse(
+                url="/?message=Rejected:+File+is+not+a+valid+DOCX+document",
+                status_code=status.HTTP_303_SEE_OTHER
+            )
+
         dest_path.write_bytes(content)
         msg = urllib.parse.quote(f"Uploaded {clean_name} to inbox successfully")
         return RedirectResponse(
@@ -142,6 +160,17 @@ async def handle_file_upload(file: UploadFile = File(...)):
             url=f"/?message={err}",
             status_code=status.HTTP_303_SEE_OTHER
         )
+
+
+@app.get("/files/{filename}")
+async def view_invoice_file(filename: str):
+    # serve invoice file for view
+    clean_name = Path(filename).name
+    file_path = Path(__file__).parent / "sample_files" / clean_name
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Invoice document not found.")
+    media_type = "application/pdf" if clean_name.lower().endswith(".pdf") else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    return FileResponse(path=file_path, media_type=media_type, filename=clean_name)
 
 
 # rest endpoints

@@ -157,12 +157,18 @@
                 {% if incoming_invoices %}
                     {% for item in incoming_invoices %}
                     <tr>
-                        <td style="font-weight: 600;">{{ item.vendor_name }}</td>
-                        <td class="mono">{{ item.invoice_number }}</td>
-                        <td style="font-weight: 700; color: #0f172a;">${{ "%.2f"|format(item.amount) }}</td>
-                        <td>{{ item.due_date }}</td>
+                        <td style="font-weight: 600;">{{ item.vendor_name or "Unknown" }}</td>
+                        <td class="mono">{{ item.invoice_number or "N/A" }}</td>
+                        <td style="font-weight: 700; color: #0f172a;">
+                            {% if item.amount is not none and item.amount %}${{ "%.2f"|format(item.amount|float) }}{% else %}$0.00{% endif %}
+                        </td>
+                        <td>{{ item.due_date or "N/A" }}</td>
                         <td><span class="status-pill">{{ item.file_name.split('.')[-1].upper() }}</span></td>
-                        <td class="mono" style="color: #64748b; font-size: 0.8rem;">{{ item.file_name }}</td>
+                        <td>
+                            <a href="/files/{{ item.file_name }}" target="_blank" class="mono" style="color: #2563eb; text-decoration: underline; font-weight: 600; font-size: 0.85rem;" title="Click to view file">
+                                📄 {{ item.file_name }}
+                            </a>
+                        </td>
                     </tr>
                     {% endfor %}
                 {% else %}
