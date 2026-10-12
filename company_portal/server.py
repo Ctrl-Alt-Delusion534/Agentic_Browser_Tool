@@ -53,8 +53,9 @@ def get_incoming_files_list():
     if not sample_dir.exists():
         return []
     from tools.document_tool import DocumentParserTool
+    db_invoices = get_all_invoices()
     parser = DocumentParserTool()
-    files = sorted(list(sample_dir.glob("*.pdf")) + list(sample_dir.glob("*.docx")))
+    files = sorted(list(sample_dir.glob("*.pdf")) + list(sample_dir.glob("*.docx")), key=lambda p: p.stat().st_mtime, reverse=True)
     items = []
     for f in files:
         res = parser.execute(str(f))
@@ -64,9 +65,22 @@ def get_incoming_files_list():
                 item["amount"] = float(item["amount"]) if item.get("amount") is not None else 0.0
             except (ValueError, TypeError):
                 item["amount"] = 0.0
-            items.append(item)
         else:
-            items.append({"file_name": f.name, "vendor_name": "Unknown", "invoice_number": "N/A", "amount": 0.0, "due_date": "N/A"})
+            item = {"file_name": f.name, "vendor_name": "Unknown", "invoice_number": "N/A", "amount": 0.0, "due_date": "N/A"}
+        
+        item_inv = str(item.get("invoice_number") or "").strip().lower()
+        item_vendor = str(item.get("vendor_name") or "").strip().lower()
+        is_audited = False
+        if item_inv and item_inv != "n/a":
+            for inv in db_invoices:
+                db_inv = str(inv.get("invoice_number") or "").strip().lower()
+                if db_inv == item_inv:
+                    db_vendor = str(inv.get("vendor_name") or "").strip().lower()
+                    if not item_vendor or not db_vendor or item_vendor in db_vendor or db_vendor in item_vendor:
+                        is_audited = True
+                        break
+        item["status"] = "AUDITED" if is_audited else "PENDING"
+        items.append(item)
     return items
 
 
@@ -76,10 +90,18 @@ async def portal_dashboard(request: Request, message: Optional[str] = None):
     # render dashboard
     invoices = get_all_invoices()
     incoming = get_incoming_files_list()
+    pending = [i for i in incoming if i.get("status") != "AUDITED"]
+    audited = [i for i in incoming if i.get("status") == "AUDITED"]
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"invoices": invoices, "incoming_invoices": incoming, "message": message}
+        context={
+            "invoices": invoices,
+            "incoming_invoices": incoming,
+            "pending_invoices": pending,
+            "audited_invoices": audited,
+            "message": message
+        }
     )
     
 @app.post("/invoices", response_class=HTMLResponse)
@@ -99,10 +121,18 @@ async def handle_form_submission(
     
     invoices = get_all_invoices()
     incoming = get_incoming_files_list()
+    pending = [i for i in incoming if i.get("status") != "AUDITED"]
+    audited = [i for i in incoming if i.get("status") == "AUDITED"]
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"invoices": invoices, "incoming_invoices": incoming, "message": msg}
+        context={
+            "invoices": invoices,
+            "incoming_invoices": incoming,
+            "pending_invoices": pending,
+            "audited_invoices": audited,
+            "message": msg
+        }
     )
 
 
@@ -191,12 +221,12 @@ async def api_create_invoice(payload: InvoiceCreateRequest):
         record = add_invoice(payload.vendor_name, payload.invoice_number, payload.amount, payload.due_date)
         return {"status": "success", "invoice": record}
     except sqlite3.IntegrityError:
-        raise HTTPException(status_code=409, detail=f"Invoice '{payload.invoice_number}' already exists.")
+        raise HTTPException(status_code=409, detail=f"Invoice '{payload.invoice_number}' already exists for vendor '{payload.vendor_name}'.")
 
 @app.get("/api/invoices/{invoice_number}")
-async def api_get_invoice(invoice_number: str):
+async def api_get_invoice(invoice_number: str, vendor: Optional[str] = None):
     # fetch record
-    record = get_invoice_by_number(invoice_number)
+    record = get_invoice_by_number(invoice_number, vendor_name=vendor)
     if not record:
         raise HTTPException(status_code=404, detail="Invoice not found.")
     return {"status": "found", "invoice": record}

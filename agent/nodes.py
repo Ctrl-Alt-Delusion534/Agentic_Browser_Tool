@@ -1,18 +1,20 @@
+import os
+import json
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any
 from agent.state import AgentState
-from agent.llm import GeminiBrain
+from agent.llm import AgentBrain
+from tools.base import ToolResult
 from tools.registry import ToolRegistry
 from tools.document_tool import DocumentParserTool
 from tools.enterprise_tool import EnterpriseApiTool
 from tools.browser_tool import BrowserTool
 
 
-import os
-
 def build_default_registry() -> ToolRegistry:
     # initialize default registry
-    headless = os.getenv("AGENT_HEADLESS", "true").lower() != "false"
+    headless = os.getenv("AGENT_HEADLESS", "false").lower() == "true"
     reg = ToolRegistry()
     reg.register(DocumentParserTool())
     reg.register(EnterpriseApiTool())
@@ -42,7 +44,34 @@ def reset_shared_registry() -> None:
         _SHARED_REGISTRY = None
 
 
+def build_context() -> str:
+    # observe inbox and ledger
+    sample_dir = Path("company_portal/sample_files")
+    sample_dir.mkdir(parents=True, exist_ok=True)
+    files = list(sample_dir.glob("*.pdf")) + list(sample_dir.glob("*.docx"))
+    files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+    parser = DocumentParserTool()
+    lines = [f"INBOX FILES ({len(files)}, newest first):"]
+    for f in files:
+        d = parser.execute(str(f)).data or {}
+        modified = datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+        lines.append(
+            f"- {f.as_posix()} | modified {modified} | vendor={d.get('vendor_name')}, "
+            f"invoice={d.get('invoice_number')}, amount={d.get('amount')}, due={d.get('due_date')}"
+        )
+
+    ledger = get_shared_registry().execute("enterprise_api", action="list")
+    records = (ledger.data or {}).get("invoices", []) if ledger.success else []
+    lines.append(f"ERP LEDGER ({len(records)} records):")
+    lines += [f"- {r['invoice_number']} | {r['vendor_name']} | {r['amount']} | due {r['due_date']}" for r in records[:25]]
+    return "\n".join(lines)
+
+
 def plan_node(state: AgentState) -> Dict[str, Any]:
+    # observe environment
+    context = state.get("context") or build_context()
+
     # check existing plan
     if state.get("plan"):
         return {
@@ -50,31 +79,15 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
             "step_index": state.get("step_index", 0),
             "retries": 0,
             "status": "running",
-            "error": None
+            "error": None,
+            "context": context
         }
-
-    # discover invoice files
-    sample_dir = Path("company_portal/sample_files")
-    sample_dir.mkdir(parents=True, exist_ok=True)
-    files = [f.as_posix() for f in (list(sample_dir.glob("*.pdf")) + list(sample_dir.glob("*.docx")))]
 
     # plan with brain
-    brain = GeminiBrain()
-    plan = brain.plan(state.get("goal", ""), files)
-
-    if not plan:
-        return {
-            "plan": [],
-            "step_index": 0,
-            "retries": 0,
-            "status": "not_found",
-            "error": "Target invoice not found in incoming repository files."
-        }
-
-    # merge direct facts
-    extracted = dict(state.get("extracted_data", {}))
-    if brain.direct_data:
-        extracted.update(brain.direct_data)
+    plan = AgentBrain().plan(state.get("goal", ""), context, get_shared_registry().get_schemas())
+    print("Plan:" if plan else "Plan: no tool actions required")
+    for i, step in enumerate(plan, 1):
+        print(f"  {i}. {step}")
 
     return {
         "plan": plan,
@@ -82,14 +95,42 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         "retries": 0,
         "status": "running",
         "error": None,
-        "extracted_data": extracted
+        "context": context
     }
 
 
+def submit_with_safeguards(reg: ToolRegistry, tool: str, params: Dict[str, Any], goal: str) -> ToolResult:
+    # guard erp writes
+    from verifier.hitl import HITLGate
+    from verifier.verifier import OutcomeVerifier
+    from company_portal.database import get_invoice_by_number
+
+    inv_num = str(params.get("invoice_number") or "").strip()
+    if not inv_num or params.get("amount") in (None, "") or not params.get("vendor_name") or not params.get("due_date"):
+        return ToolResult(success=False, error="Missing required invoice fields; refusing to submit.")
+
+    # evaluate hitl safety
+    approval = HITLGate().request_approval(params["vendor_name"], inv_num, params["amount"])
+    if not approval["approved"]:
+        return ToolResult(success=False, error=f"HITL rejected: {approval['reason']}")
+
+    # execute tool action
+    result = reg.execute(tool, **params)
+    if not result.success:
+        return result
+
+    # verify ground truth
+    verifier = OutcomeVerifier()
+    check = verifier.verify_invoice(inv_num, str(params["vendor_name"]), float(params["amount"]), str(params["due_date"]))
+    proof = verifier.generate_proof_of_work(check, goal)
+    if check["verified"]:
+        return ToolResult(success=True, data=proof)
+    return ToolResult(success=False, data=proof, error=check.get("error") or f"Ledger mismatch: {check.get('discrepancies')}")
+
+
 def execute_node(state: AgentState) -> Dict[str, Any]:
-    # execute planned task
+    # execute planned step
     reg = get_shared_registry()
-    brain = GeminiBrain()
     plan = state["plan"]
     idx = state["step_index"]
 
@@ -97,61 +138,26 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
         return {"status": "completed"}
 
     # reason tool action
-    current_task = plan[idx]
-    decision = brain.reason(current_task, state.get("extracted_data", {}))
+    step = plan[idx]
+    decision = AgentBrain().reason(
+        state.get("goal", ""), step, state.get("extracted_data", {}), state.get("history", []), reg.get_schemas()
+    )
+    tool, params = decision["tool"], decision["params"]
+    print(f"[{idx + 1}/{len(plan)}] {step}\n      -> {tool} {json.dumps(params, default=str)}")
 
-    # handle ledger verification
-    if current_task.startswith("verify:"):
-        from verifier.verifier import OutcomeVerifier
-        from tools.base import ToolResult
-        verifier = OutcomeVerifier()
-        data = state.get("extracted_data", {})
-        verif_res = verifier.verify_invoice(
-            invoice_number=data.get("invoice_number", ""),
-            expected_vendor=data.get("vendor_name", ""),
-            expected_amount=data.get("amount", 0.0),
-            expected_due_date=data.get("due_date", "")
-        )
-        pow_doc = verifier.generate_proof_of_work(verif_res, state.get("goal", ""))
-        return {
-            "last_result": ToolResult(success=verif_res["verified"], data=pow_doc, error=verif_res.get("error")).to_dict(),
-            "action_type": "verify"
-        }
+    is_submit = (tool == "browser_tool" and params.get("action") == "submit_invoice") or \
+                (tool == "enterprise_api" and params.get("action") == "create")
+    if not tool:
+        result = ToolResult(success=True, data={"skipped": decision["thought"]})
+    elif is_submit:
+        result = submit_with_safeguards(reg, tool, params, state.get("goal", ""))
+    else:
+        result = reg.execute(tool, **params)
 
-    # evaluate hitl safety
-    if decision.get("tool") == "browser_tool" and decision.get("params", {}).get("action") == "submit_invoice":
-        from verifier.hitl import HITLGate
-        from tools.base import ToolResult
-        params = decision["params"]
-        gate = HITLGate()
-        approval = gate.request_approval(
-            vendor_name=params.get("vendor_name", "Unknown"),
-            invoice_number=params.get("invoice_number", "INV"),
-            amount=params.get("amount", 0.0)
-        )
-        if not approval["approved"]:
-            return {
-                "last_result": ToolResult(success=False, error=f"HITL safety reject: {approval['reason']}").to_dict(),
-                "action_type": "submit"
-            }
-
-    # check existing record
-    if decision.get("tool") == "browser_tool" and decision.get("params", {}).get("action") == "submit_invoice":
-        from company_portal.database import get_invoice_by_number
-        from tools.base import ToolResult
-        inv_num = decision["params"].get("invoice_number")
-        existing = get_invoice_by_number(inv_num) if inv_num else None
-        if existing and abs(existing["amount"] - float(decision["params"].get("amount", 0.0))) < 0.01:
-            return {
-                "last_result": ToolResult(success=True, data={"submitted": inv_num, "status": "existing"}).to_dict(),
-                "action_type": "submit"
-            }
-
-    result = reg.execute(decision["tool"], **decision["params"])
-
+    result.metadata = {"tool": tool, "params": params, "thought": decision["thought"]}
     return {
         "last_result": result.to_dict(),
-        "action_type": current_task.partition(":")[0]
+        "action_type": "submit" if is_submit else tool
     }
 
 
@@ -160,79 +166,65 @@ def observe_node(state: AgentState) -> Dict[str, Any]:
     last_res = state.get("last_result", {})
     action_type = state.get("action_type", "")
     is_success = last_res.get("success", False)
+    meta = last_res.get("metadata", {})
 
     # update action history
     history = list(state.get("history", []))
     history.append({
         "step": state["plan"][state["step_index"]],
+        "tool": meta.get("tool"),
+        "params": meta.get("params"),
         "success": is_success,
-        "error": last_res.get("error")
+        "error": last_res.get("error"),
+        "observation": json.dumps(last_res.get("data"), default=str)[:800] if last_res.get("data") else None
     })
 
     if is_success:
         extracted = dict(state.get("extracted_data", {}))
         # merge extracted facts
-        if action_type == "parse" and last_res.get("data"):
+        if action_type == "parse_document" and last_res.get("data"):
             extracted.update(last_res["data"])
 
         new_index = state["step_index"] + 1
         is_done = new_index >= len(state.get("plan", []))
         return {
             "extracted_data": extracted,
-            "proof_of_work": last_res.get("data") if action_type == "verify" else state.get("proof_of_work"),
+            "proof_of_work": last_res.get("data") if action_type == "submit" else state.get("proof_of_work"),
             "history": history,
             "step_index": new_index,
+            "retries": 0,
             "status": "completed" if is_done else "running",
             "error": None
         }
-    else:
-        # record step failure
-        return {
-            "history": history,
-            "error": last_res.get("error", "Action failed"),
-            "retries": state.get("retries", 0) + 1
-        }
+
+    # record step failure
+    print(f"      !! {last_res.get('error', 'Action failed')}")
+    return {
+        "history": history,
+        "error": last_res.get("error", "Action failed"),
+        "retries": state.get("retries", 0) + 1
+    }
 
 
 def recover_node(state: AgentState) -> Dict[str, Any]:
-    # attempt adaptive recovery
-    reg = get_shared_registry()
-    data = state.get("extracted_data", {})
+    # classify failure
+    err = str(state.get("error", ""))
+    if err.startswith(("HITL", "Missing required")):
+        # never bypass safety
+        return {"status": "failed"}
 
-    # fallback to api
-    fallback_res = reg.execute(
-        "enterprise_api",
-        action="create",
-        vendor_name=data.get("vendor_name", "Unknown"),
-        invoice_number=data.get("invoice_number", "INV-000"),
-        amount=data.get("amount", 0.0),
-        due_date=data.get("due_date", "2026-12-31")
-    )
+    # retry with failure in history
+    print(f"      Adapting (attempt {state.get('retries', 0) + 1}/3)")
+    return {"error": None, "status": "running"}
 
-    if fallback_res.success:
-        new_index = state["step_index"] + 1
-        is_done = new_index >= len(state.get("plan", []))
-        return {
-            "step_index": new_index,
-            "status": "completed" if is_done else "running",
-            "error": None
-        }
 
-    # direct db fallback
+def respond_node(state: AgentState) -> Dict[str, Any]:
+    # synthesize final answer
+    failed = state.get("status") == "failed" or bool(state.get("error"))
     try:
-        from company_portal.database import add_invoice
-        add_invoice(
-            vendor_name=data.get("vendor_name", "Unknown"),
-            invoice_number=data.get("invoice_number", "INV-000"),
-            amount=data.get("amount", 0.0),
-            due_date=data.get("due_date", "2026-12-31")
+        answer = AgentBrain().respond(
+            state.get("goal", ""), state.get("context", ""), state.get("extracted_data", {}), state.get("history", [])
         )
-        new_index = state["step_index"] + 1
-        is_done = new_index >= len(state.get("plan", []))
-        return {
-            "step_index": new_index,
-            "status": "completed" if is_done else "running",
-            "error": None
-        }
     except Exception as e:
-        return {"status": "failed", "error": f"Self-healing exceeded: {e}"}
+        answer = f"Could not synthesize answer: {e}"
+    return {"answer": answer, "status": "failed" if failed else "completed"}

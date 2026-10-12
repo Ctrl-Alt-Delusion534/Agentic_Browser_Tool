@@ -27,13 +27,13 @@ def clean_database():
 def test_database_crud_operations():
     # insert record
     record = add_invoice(
-        vendor_name="Acme Corporation",
+        vendor_name="Nexus Technologies",
         invoice_number="INV-TEST-99",
         amount=1500.50,
         due_date="2026-11-30"
     )
     assert record["id"] is not None
-    assert record["vendor_name"] == "Acme Corporation"
+    assert record["vendor_name"] == "Nexus Technologies"
     assert record["amount"] == 1500.50
     assert len(record["audit_hash"]) == 16
 
@@ -47,19 +47,19 @@ def test_database_crud_operations():
     assert single is not None
     assert single["amount"] == 1500.50
 
-    # duplicate rejection
+    # duplicate rejection for same vendor
     with pytest.raises(sqlite3.IntegrityError):
-        add_invoice("Duplicate Vendor", "INV-TEST-99", 500.00, "2026-12-01")
+        add_invoice("Nexus Technologies", "INV-TEST-99", 500.00, "2026-12-01")
 
 
 def test_audit_hash_integrity():
     # compare hashes
-    hash1 = generate_audit_hash("Acme", "INV-1", 100.0, "2026-10-01")
-    hash2 = generate_audit_hash("Acme", "INV-1", 100.0, "2026-10-01")
+    hash1 = generate_audit_hash("Nexus", "INV-1", 100.0, "2026-10-01")
+    hash2 = generate_audit_hash("Nexus", "INV-1", 100.0, "2026-10-01")
     assert hash1 == hash2
 
     # verify difference
-    hash_diff = generate_audit_hash("Acme", "INV-1", 100.01, "2026-10-01")
+    hash_diff = generate_audit_hash("Nexus", "INV-1", 100.01, "2026-10-01")
     assert hash1 != hash_diff
 
 
@@ -134,7 +134,7 @@ def test_mock_fixtures_generated():
     create_all_fixtures()
 
     # check files
-    pdf_file = SAMPLE_DIR / "AcmeCorp_INV_2024_001.pdf"
+    pdf_file = SAMPLE_DIR / "Apex_INV_2024_001.pdf"
     docx_file = SAMPLE_DIR / "GlobalLogistics_INV_8821.docx"
 
     assert pdf_file.exists()

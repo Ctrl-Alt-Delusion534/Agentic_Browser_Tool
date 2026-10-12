@@ -9,9 +9,11 @@ from docx.shared import Pt, RGBColor
 SAMPLE_DIR = Path(__file__).parent / "sample_files"
 
 
-def create_acme_pdf_invoice():
-    # generate acme pdf
-    file_path = SAMPLE_DIR / "AcmeCorp_INV_2024_001.pdf"
+def create_apex_pdf_invoice(overwrite: bool = False):
+    # generate apex pdf
+    file_path = SAMPLE_DIR / "Apex_INV_2024_001.pdf"
+    if file_path.exists() and not overwrite:
+        return file_path
     SAMPLE_DIR.mkdir(parents=True, exist_ok=True)
 
     c = canvas.Canvas(str(file_path), pagesize=letter)
@@ -24,7 +26,7 @@ def create_acme_pdf_invoice():
     # draw company title
     c.setFillColor(colors.white)
     c.setFont("Helvetica-Bold", 20)
-    c.drawString(40, height - 45, "ACME CORPORATION")
+    c.drawString(40, height - 45, "APEX TECHNOLOGIES")
 
     # draw invoice details
     c.setFillColor(colors.HexColor("#0f172a"))
@@ -54,9 +56,11 @@ def create_acme_pdf_invoice():
     return file_path
 
 
-def create_global_docx_invoice():
+def create_global_docx_invoice(overwrite: bool = False):
     # generate docx invoice
     file_path = SAMPLE_DIR / "GlobalLogistics_INV_8821.docx"
+    if file_path.exists() and not overwrite:
+        return file_path
     SAMPLE_DIR.mkdir(parents=True, exist_ok=True)
 
     doc = Document()
@@ -156,10 +160,10 @@ def generate_docx_invoice(vendor_name: str, invoice_number: str, amount: float, 
     return file_path
 
 
-def create_all_fixtures():
+def create_all_fixtures(overwrite: bool = False):
     # generate all fixtures
-    create_acme_pdf_invoice()
-    create_global_docx_invoice()
+    create_apex_pdf_invoice(overwrite=overwrite)
+    create_global_docx_invoice(overwrite=overwrite)
 
 
 if __name__ == "__main__":

@@ -13,6 +13,14 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 from agent.graph import create_agent_graph
 from agent.nodes import reset_shared_registry
 from company_portal.generate_fixtures import create_all_fixtures, generate_pdf_invoice
@@ -85,28 +93,18 @@ def handle_add_invoice():
 
 def print_completion(result: dict):
     # display completion summary
-    status = result.get("status")
+    status = result.get("status") or "unknown"
     print("-" * 60)
     print(f"Execution Status: {status.upper()}")
     for h in result.get("history", []):
         tag = "OK" if h.get("success") else "FAIL"
         err = f" ({h.get('error')})" if not h.get("success") and h.get("error") else ""
         print(f" [{tag}] {h.get('step')}{err}")
+    pow_doc = result.get("proof_of_work")
+    if pow_doc and pow_doc.get("audit_hash"):
+        print(f"Audit:    SHA-256 ({pow_doc['audit_hash']}) -> proof_of_work.json")
     print("-" * 60)
-
-    if status == "completed":
-        d = result.get("extracted_data", {})
-        print(f"Vendor:   {d.get('vendor_name', 'N/A')}")
-        print(f"Invoice:  {d.get('invoice_number', 'N/A')}")
-        print(f"Amount:   ${d.get('amount', 0.0):,.2f}")
-        print(f"Due Date: {d.get('due_date', 'N/A')}")
-        pow_doc = result.get("proof_of_work")
-        if pow_doc and pow_doc.get("audit_hash"):
-            print(f"Audit:    SHA-256 ({pow_doc['audit_hash']})")
-        print("Outcome:  Recorded into ERP and verified in ledger.")
-    elif status == "not_found":
-        print("Notice:   Requested invoice not found in incoming repository files.")
-        print("Action:   Run with --list to view pending files or provide record fields directly.")
+    print(result.get("answer") or result.get("error") or "No answer produced.")
     print("-" * 60)
 
 
@@ -150,10 +148,6 @@ def run():
         args = [a for a in sys.argv[1:] if not a.startswith("--")]
         goal = args[0] if args else "Discover, extract, and record all pending invoices into ERP"
 
-    if any(q in goal.lower() for q in ["what invoices", "list invoices", "show inbox"]):
-        show_inbox()
-        return {"status": "completed", "invoices": get_inbox_files()}
-
     print("-" * 60)
     print(f"CENTRALIGN TASK WORKER | Goal: {goal}")
     print(f"Mode: {'Headed Browser' if os.getenv('AGENT_HEADLESS') == 'false' else 'Headless'}")
@@ -163,6 +157,8 @@ def run():
         # execute graph pipeline
         graph = create_agent_graph()
         result = graph.invoke({"goal": goal})
+    except Exception as e:
+        result = {"status": "failed", "error": f"Agent error: {e}"}
     finally:
         # cleanup browser instance
         reset_shared_registry()

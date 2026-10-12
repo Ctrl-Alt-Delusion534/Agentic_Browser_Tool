@@ -37,17 +37,29 @@ class DocumentParserTool(BaseTool):
         return "\n".join(lines)
 
     def _extract_vendor(self, lines: List[str]) -> Optional[str]:
-        # labeled vendor
-        for line in lines[:10]:
+        # labeled vendor across same line or next line
+        for i, line in enumerate(lines[:15]):
+            # same line labeled
             match = re.search(r"^(?:vendor|from|biller|company\s*name)[:\s]+([A-Za-z0-9&.,\s'-]{3,50})", line, re.I)
             if match:
-                return match.group(1).strip()
+                val = match.group(1).strip()
+                if not re.match(r"^(inv|#|\d)", val, re.I):
+                    return val
+
+            # two-line labeled: header on line i, vendor on line i+1
+            if re.match(r"^(?:vendor(?:\s*/\s*company\s*name)?|company\s*name|bill\s+from|from)[:\s]*$", line, re.I):
+                if i + 1 < len(lines):
+                    next_val = lines[i + 1].strip()
+                    if next_val and len(next_val) >= 3 and not re.match(r"^(inv|#|\d|invoice)", next_val, re.I):
+                        return next_val
 
         # top header
-        for line in lines[:6]:
+        for line in lines[:8]:
             cleaned = line.strip()
-            # skip boilerplate
-            if not cleaned or re.search(r"^(invoice|bill\s+to|date|page|attn)", cleaned, re.I):
+            # skip boilerplate and invoice numbers
+            if not cleaned or re.search(r"^(invoice|inv[-_#\d]|bill\s+to|date|page|attn|description|amount)", cleaned, re.I):
+                continue
+            if re.match(r"^[A-Z0-9_-]{3,15}$", cleaned) and "INV" in cleaned:
                 continue
             if len(cleaned) >= 3 and not re.match(r"^[^a-zA-Z]+$", cleaned):
                 return cleaned.split(" - ")[0].strip()
@@ -92,6 +104,32 @@ class DocumentParserTool(BaseTool):
         if match:
             return match.group(1).replace("/", "-")
 
+        # labeled due with written month
+        match_named = re.search(
+            r"(?i)(?:payment\s+due(?:(?:\s+date)?)|due\s+date|due\s+by)[:\s\n]*"
+            r"(?:([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})|(\d{1,2})\s+([A-Za-z]+),?\s+(\d{4}))",
+            text
+        )
+        if match_named:
+            months = {
+                "jan": "01", "january": "01", "feb": "02", "february": "02",
+                "mar": "03", "march": "03", "apr": "04", "april": "04",
+                "may": "05", "jun": "06", "june": "06", "jul": "07", "july": "07",
+                "aug": "08", "august": "08", "sep": "09", "september": "09",
+                "oct": "10", "october": "10", "nov": "11", "november": "11",
+                "dec": "12", "december": "12"
+            }
+            if match_named.group(1) and match_named.group(2) and match_named.group(3):
+                m_str, d_str, y_str = match_named.group(1).lower(), match_named.group(2), match_named.group(3)
+                m_num = months.get(m_str)
+                if m_num:
+                    return f"{y_str}-{m_num}-{d_str.zfill(2)}"
+            elif match_named.group(4) and match_named.group(5) and match_named.group(6):
+                d_str, m_str, y_str = match_named.group(4), match_named.group(5).lower(), match_named.group(6)
+                m_num = months.get(m_str)
+                if m_num:
+                    return f"{y_str}-{m_num}-{d_str.zfill(2)}"
+
         # fallback date
         all_dates = re.findall(r"\b(\d{4}-\d{2}-\d{2})\b", text)
         if all_dates:
@@ -124,6 +162,10 @@ class DocumentParserTool(BaseTool):
         inv_num = self._extract_invoice_number(raw_text)
         amount = self._extract_amount(raw_text)
         due_date = self._extract_due_date(raw_text)
+
+        # reject vendor if it looks like an invoice number
+        if vendor and (re.match(r"^(inv[-_#\d]|#\d)", vendor, re.I) or (inv_num and vendor == inv_num)):
+            vendor = None
 
         # fallback to llm reasoning if fields missing
         if not all([vendor, inv_num, amount, due_date]) and len(raw_text.strip()) > 15:

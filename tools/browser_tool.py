@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Any, Optional
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
@@ -20,12 +21,16 @@ class BrowserTool(BaseTool):
             "url": {"type": "string", "description": "Target webpage URL"},
             "selector": {"type": "string", "description": "CSS selector to interact with"},
             "value": {"type": "string", "description": "Text to fill into an input field"},
-            "screenshot_path": {"type": "string", "description": "File path to save screenshot"}
+            "screenshot_path": {"type": "string", "description": "File path to save screenshot"},
+            "vendor_name": {"type": "string", "description": "submit_invoice: vendor company name"},
+            "invoice_number": {"type": "string", "description": "submit_invoice: invoice reference number"},
+            "amount": {"type": "number", "description": "submit_invoice: total amount in USD"},
+            "due_date": {"type": "string", "description": "submit_invoice: due date YYYY-MM-DD"}
         },
         "required": ["action"]
     }
 
-    def __init__(self, headless: bool = True):
+    def __init__(self, headless: Optional[bool] = None):
         # browser state
         self.headless = headless
         self._executor = ThreadPoolExecutor(max_workers=1)
@@ -36,9 +41,21 @@ class BrowserTool(BaseTool):
     def _ensure_browser(self) -> Page:
         # launch browser
         if not self._page:
+            env_val = os.getenv("AGENT_HEADLESS", "false").lower()
+            if self.headless is not None:
+                is_headless = self.headless
+            else:
+                is_headless = (env_val == "true")
+            if env_val == "false":
+                is_headless = False
+
             self._pw = sync_playwright().start()
-            self._browser = self._pw.chromium.launch(headless=self.headless, slow_mo=800)
-            self._page = self._browser.new_page()
+            self._browser = self._pw.chromium.launch(
+                headless=is_headless,
+                slow_mo=800,
+                args=["--start-maximized"]
+            )
+            self._page = self._browser.new_page(no_viewport=True)
         return self._page
 
     def _close_internal(self) -> None:
@@ -101,7 +118,13 @@ class BrowserTool(BaseTool):
             page.fill("#due_date", str(kwargs.get("due_date", "")))
             page.click("#submit_btn")
             page.wait_for_load_state("domcontentloaded", timeout=15000)
-            return ToolResult(success=True, data={"submitted": kwargs.get("invoice_number"), "url": page.url})
+            shot_path = Path("artifacts/latest_submission.png")
+            shot_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                page.screenshot(path=str(shot_path))
+            except Exception:
+                pass
+            return ToolResult(success=True, data={"submitted": kwargs.get("invoice_number"), "url": page.url, "screenshot": str(shot_path)})
 
         return ToolResult(success=False, error=f"Unknown browser action: '{action}'")
 

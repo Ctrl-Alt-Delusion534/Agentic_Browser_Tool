@@ -1,68 +1,52 @@
-# environment files
-.env
-.env.*
-*.env
-
-# hiring documents
-*Hiring*
-*CentrAlign*
-*JD*.*
-
-# sample files
-company_portal/sample_files/
-sample_files/
-*.docx
-*.pdf
-
-# planning artifacts
-.planning/
-.agents/
-.gemini/
-.cursor/
-.claude/
-.system_generated/
-specs/
-
-# python bytecode
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 *.pyo
 
-# virtual environments
+# Environment and local credentials
+.env
+.env.*
+*.env
+
+# Virtual environments
 .venv/
 venv/
-ENV/
 env/
+ENV/
 
-# testing caches
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-
-# runtime databases
+# Local databases and runtime stores
 *.db
 *.sqlite
 *.sqlite3
 portal.db
 company_portal/*.db
 
-# generated artifacts
+# Local documents, sample files and runtime artifacts
+company_portal/sample_files/
+sample_files/
 artifacts/
-*.log
+*.pdf
+*.docx
+
+# Testing and coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
 playwright-report/
 test-results/
+*.log
 
-# scratch scripts
-demo_*.py
-scratch/
-temp/
-tmp/
-
-# ide settings
+# Editor, IDE and local tool configurations
 .vscode/
 .idea/
+.planning/
+.agents/
+.gemini/
+.cursor/
+.claude/
+.system_generated/
 *.swp
 *.swo
 .DS_Store

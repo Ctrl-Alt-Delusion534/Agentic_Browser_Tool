@@ -26,3 +26,7 @@ class AgentState(TypedDict, total=False):
     proof_of_work: Optional[Dict[str, Any]]
     # operator approval flag
     hitl_approved: Optional[bool]
+    # observed environment snapshot
+    context: Optional[str]
+    # final user answer
+    answer: Optional[str]

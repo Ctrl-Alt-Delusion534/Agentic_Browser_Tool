@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-10-11T18:32:45.053882+00:00",
-  "goal": "Discover and record all invoices",
+  "timestamp": "2026-10-12T17:59:02.253896+00:00",
+  "goal": "Find the latest invoice from Apex Technologies, extract the amount and due date, enter it into our internal system, and tell me once it is done.",
   "verified": true,
-  "invoice_number": "GL-INV-8821",
-  "vendor_name": "Global Logistics Inc.",
-  "amount": 12850.75,
-  "due_date": "2026-11-20",
-  "audit_hash": "08ab5987dfff48b7",
-  "ledger_id": 4
+  "invoice_number": "INV-2024-001",
+  "vendor_name": "APEX TECHNOLOGIES",
+  "amount": 4500.0,
+  "due_date": "2026-11-15",
+  "audit_hash": "bc16dd482d10589f",
+  "ledger_id": 1
 }

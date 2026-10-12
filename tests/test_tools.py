@@ -53,12 +53,12 @@ def test_document_parser_tool():
     tool = DocumentParserTool()
 
     # parse pdf
-    pdf_path = SAMPLE_DIR / "AcmeCorp_INV_2024_001.pdf"
+    pdf_path = SAMPLE_DIR / "Apex_INV_2024_001.pdf"
     pdf_res = tool.execute(file_path=str(pdf_path))
     assert pdf_res.success is True
     assert pdf_res.data["invoice_number"] == "INV-2024-001"
     assert pdf_res.data["amount"] == 4500.0
-    assert "ACME" in pdf_res.data["vendor_name"].upper()
+    assert "APEX" in pdf_res.data["vendor_name"].upper()
 
     # parse docx
     docx_path = SAMPLE_DIR / "GlobalLogistics_INV_8821.docx"
@@ -76,7 +76,7 @@ def test_enterprise_api_tool():
     # create invoice
     res_create = tool.execute(
         action="create",
-        vendor_name="Acme Corp",
+        vendor_name="Apex Technologies",
         invoice_number="INV-2024-001",
         amount=4500.0,
         due_date="2026-11-15"

@@ -28,15 +28,17 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS invoices (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 vendor_name TEXT NOT NULL,
-                invoice_number TEXT NOT NULL UNIQUE,
+                invoice_number TEXT NOT NULL,
                 amount REAL NOT NULL,
                 due_date TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'SUBMITTED',
+                status TEXT NOT NULL DEFAULT 'AUDITED',
                 created_at TEXT NOT NULL,
-                audit_hash TEXT NOT NULL
+                audit_hash TEXT NOT NULL,
+                UNIQUE(vendor_name, invoice_number)
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_invoices_vendor_number ON invoices(vendor_name, invoice_number)")
         conn.commit()
 
 
@@ -45,7 +47,7 @@ def add_invoice(
     invoice_number: str,
     amount: float,
     due_date: str,
-    status: str = "SUBMITTED"
+    status: str = "AUDITED"
 ) -> Dict[str, Any]:
     # insert invoice record
     init_db()
@@ -80,11 +82,18 @@ def get_all_invoices() -> List[Dict[str, Any]]:
         return [dict(row) for row in rows]
 
 
-def get_invoice_by_number(invoice_number: str) -> Optional[Dict[str, Any]]:
-    # query by number
+def get_invoice_by_number(invoice_number: str, vendor_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    # query by number and optional vendor
     init_db()
     with get_db_connection() as conn:
-        row = conn.execute("SELECT * FROM invoices WHERE invoice_number = ?", (invoice_number.strip(),)).fetchone()
+        if vendor_name and vendor_name.strip():
+            v = vendor_name.strip().lower()
+            row = conn.execute(
+                "SELECT * FROM invoices WHERE invoice_number = ? AND (LOWER(vendor_name) = ? OR LOWER(vendor_name) LIKE ? OR ? LIKE '%' || LOWER(vendor_name) || '%') ORDER BY id DESC LIMIT 1",
+                (invoice_number.strip(), v, f"%{v}%", v)
+            ).fetchone()
+            return dict(row) if row else None
+        row = conn.execute("SELECT * FROM invoices WHERE invoice_number = ? ORDER BY id DESC LIMIT 1", (invoice_number.strip(),)).fetchone()
         return dict(row) if row else None
 
 
@@ -101,7 +110,7 @@ if __name__ == "__main__":
     print("[Self-Test] Initializing DB...")
     init_db()
     reset_db()
-    sample = add_invoice("Acme Corp", "INV-2024-001", 4500.00, "2026-11-15")
+    sample = add_invoice("Apex Logistics", "INV-2024-001", 4500.00, "2026-11-15")
     fetched = get_invoice_by_number("INV-2024-001")
     assert fetched is not None
     assert fetched["amount"] == 4500.00

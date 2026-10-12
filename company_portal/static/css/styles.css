@@ -1,37 +1,29 @@
-/* CentrAlign Portal - PRDUCK Inspired Warm Editorial Aesthetic */
+/* CentrAlign Portal - Enterprise System Aesthetic */
 
 :root {
-    /* Palette Inspired by Sunset & Cream Editorial */
-    --bg-gradient-top: #dfd5f5;
-    --bg-gradient-mid: #fcd4ce;
-    --bg-gradient-warm: #fedcb2;
-    --bg-gradient-bottom: #faeddc;
-    
-    --nav-bg: #141416;
-    --nav-border: rgba(255, 255, 255, 0.12);
-    --nav-text: #e2e8f0;
+    --bg-page: #f8fafc;
+    --nav-bg: #0f172a;
+    --nav-border: #1e293b;
+    --nav-text: #f8fafc;
     --nav-text-muted: #94a3b8;
     
-    --card-bg: rgba(255, 255, 255, 0.82);
-    --card-border: rgba(0, 0, 0, 0.08);
-    --card-shadow: 0 16px 40px -10px rgba(70, 45, 30, 0.12), 0 0 1px 1px rgba(0, 0, 0, 0.04);
+    --card-bg: #ffffff;
+    --card-border: #e2e8f0;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
 
-    --text-heading: #121316;
-    --text-body: #33363f;
-    --text-muted: #6b7280;
+    --text-heading: #0f172a;
+    --text-body: #334155;
+    --text-muted: #64748b;
 
-    --accent-orange: #f95721;
-    --accent-orange-hover: #e04513;
-    --accent-orange-soft: rgba(249, 87, 33, 0.12);
-    
-    --accent-blue: #0284c7;
-    --accent-dark: #18181b;
-    --success-green: #10b981;
+    --accent-primary: #0f172a;
+    --accent-hover: #1e293b;
+    --accent-blue: #2563eb;
+    --success-green: #059669;
 
-    --radius-sm: 8px;
-    --radius-md: 14px;
-    --radius-lg: 24px;
-    --radius-pill: 9999px;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 6px;
+    --radius-pill: 6px;
 }
 
 * {
@@ -42,17 +34,11 @@
 }
 
 body {
-    background: linear-gradient(180deg, 
-        var(--bg-gradient-top) 0%, 
-        var(--bg-gradient-mid) 28%, 
-        var(--bg-gradient-warm) 62%, 
-        var(--bg-gradient-bottom) 100%
-    );
+    background: var(--bg-page);
     color: var(--text-body);
     min-height: 100vh;
     padding: 1.5rem 1.5rem 4rem 1.5rem;
     line-height: 1.5;
-    background-attachment: fixed;
 }
 
 .container {
@@ -60,7 +46,7 @@ body {
     margin: 0 auto;
 }
 
-/* --- Floating Dark Navbar (PRDUCK style) --- */
+/* --- Floating Dark Navbar --- */
 .floating-nav {
     background: var(--nav-bg);
     border: 1px solid var(--nav-border);
@@ -69,8 +55,8 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 3.5rem;
-    box-shadow: 0 14px 34px -4px rgba(0, 0, 0, 0.28);
+    margin-bottom: 2.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .nav-left {
@@ -90,17 +76,16 @@ body {
     text-decoration: none;
 }
 
-.brand-icon, .duck-icon {
+.brand-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: linear-gradient(135deg, #f97316, #ea580c);
-    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    background: var(--accent-orange);
+    border-radius: var(--radius-sm);
     color: white;
-    font-size: 1.05rem;
-    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+    font-size: 1rem;
 }
 
 /* Segmented Pill Switcher */
@@ -270,7 +255,6 @@ body {
 /* --- Cards --- */
 .card {
     background: var(--card-bg);
-    backdrop-filter: blur(20px);
     border: 1px solid var(--card-border);
     border-radius: var(--radius-lg);
     padding: 2rem;
@@ -322,41 +306,39 @@ label {
 .input-control {
     width: 100%;
     background: #ffffff;
-    border: 1.5px solid rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(0, 0, 0, 0.15);
     border-radius: var(--radius-sm);
-    padding: 0.8rem 1rem;
+    padding: 0.75rem 1rem;
     color: var(--text-heading);
     font-size: 0.925rem;
     font-weight: 500;
-    transition: all 0.2s ease;
+    transition: border-color 0.15s ease;
 }
 
 .input-control:focus {
     outline: none;
-    border-color: var(--accent-orange);
-    box-shadow: 0 0 0 3px rgba(249, 87, 33, 0.15);
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .btn-submit {
     width: 100%;
-    padding: 0.95rem;
-    background: var(--accent-orange);
+    padding: 0.85rem;
+    background: var(--accent-primary);
     color: white;
     font-size: 0.95rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: -0.01em;
     border: none;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    box-shadow: 0 8px 20px -3px rgba(249, 87, 33, 0.4);
-    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: background-color 0.15s ease;
     margin-top: 0.5rem;
 }
 
 .btn-submit:hover {
-    background: var(--accent-orange-hover);
-    transform: translateY(-1px);
-    box-shadow: 0 10px 24px -2px rgba(249, 87, 33, 0.5);
+    background: var(--accent-hover);
 }
 
 /* --- Table Styling --- */

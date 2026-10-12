@@ -26,18 +26,24 @@ class OutcomeVerifier:
 
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
+            row = None
             if invoice_number and invoice_number.strip():
-                row = conn.execute(
-                    "SELECT * FROM invoices WHERE invoice_number = ?",
-                    (invoice_number.strip(),)
-                ).fetchone()
+                if expected_vendor and expected_vendor.strip():
+                    v = expected_vendor.strip().lower()
+                    row = conn.execute(
+                        "SELECT * FROM invoices WHERE invoice_number = ? AND (LOWER(vendor_name) = ? OR LOWER(vendor_name) LIKE ? OR ? LIKE '%' || LOWER(vendor_name) || '%') ORDER BY id DESC LIMIT 1",
+                        (invoice_number.strip(), v, f"%{v}%", v)
+                    ).fetchone()
+                if not row:
+                    row = conn.execute(
+                        "SELECT * FROM invoices WHERE invoice_number = ? ORDER BY id DESC LIMIT 1",
+                        (invoice_number.strip(),)
+                    ).fetchone()
             elif expected_vendor:
                 row = conn.execute(
                     "SELECT * FROM invoices WHERE LOWER(vendor_name) = LOWER(?) ORDER BY id DESC LIMIT 1",
                     (expected_vendor.strip(),)
                 ).fetchone()
-            else:
-                row = None
 
         if not row:
             return {"verified": False, "error": f"Invoice '{invoice_number or expected_vendor}' not found in ledger"}
